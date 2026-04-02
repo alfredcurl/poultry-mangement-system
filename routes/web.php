@@ -1,0 +1,279 @@
+<?php
+
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\{
+    AuthController,
+    HomeController,
+    OrderController,
+    PointController,
+    ReviewController,
+    ProductController,
+    ProfileController,
+    TransactionController,
+    BirdController,
+    MortalityController,
+    EggProductionController,
+    FeedController,
+    MedicationController,
+    ExpenseController,
+    ReportController
+};
+
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register web routes for your application. These
+| routes are loaded by the RouteServiceProvider within a group which
+| contains the "web" middleware group. Now create something great!
+|
+*/
+
+// pre authenticate
+Route::middleware(['alreadyLogin'])->group(function () {
+    // landing
+    Route::get('/', function () {
+        return view('landing.index', [
+            "title" => "Landing",
+        ]);
+    });
+
+    // Login
+    Route::get('/{url}', [AuthController::class, "loginGet"])->where(["url" => "auth|auth/login"])->name("auth");
+    Route::post('/auth/login', [AuthController::class, "loginPost"]);
+
+    // Register
+    Route::get('/auth/register', [AuthController::class, "registrationGet"]);
+    Route::post('/auth/register', [AuthController::class, "registrationPost"]);
+});
+
+
+
+// main
+Route::middleware(['auth'])->group(function () {
+    // Home
+    Route::controller(HomeController::class)->group(function () {
+        Route::get("/home", "index");
+        Route::get("/home/customers", "customers");
+    });
+
+    // profile
+    Route::controller(ProfileController::class)->group(function () {
+        Route::get("/profile/my_profile", "myProfile");
+        Route::get("/profile/edit_profile", "editProfileGet");
+        Route::post("/profile/edit_profile/{user:id}", "editProfilePost");
+        Route::get("/profile/change_password", "changePasswordGet");
+        Route::post("/profile/change_password", "changePasswordPost");
+    });
+
+    // Product (Egg Products)
+    Route::controller(ProductController::class)->group(function () {
+        Route::get("/product", "index");
+        Route::get("/product/data/{id}", "getProductData");
+
+        // admin only
+        Route::get("/product/add_product", "addProductGet")->can("add_product", App\Models\Product::class);
+        Route::post("/product/add_product", "addProductPost")->can("add_product", App\Models\Product::class);
+        Route::get("/product/edit_product/{product:id}", "editProductGet")->can("edit_product", App\Models\Product::class);
+        Route::post("/product/edit_product/{product:id}", "editProductPost")->can("edit_product", App\Models\Product::class);
+    });
+
+    // Order (Egg Sales)
+    Route::controller(OrderController::class)->group(function () {
+        Route::get("/order/order_data", "orderData");
+        Route::get("/order/order_history", "orderHistory");
+        Route::get("/order/order_data/{status_id}", "orderDataFilter");
+        Route::get("/order/data/{order}", "getOrderData")->can("my_real_order", "order");
+
+
+        // customer only
+        Route::get("/order/make_order/{product:id}", "makeOrderGet")->can("create_order", App\Models\Order::class);
+        Route::post("/order/make_order/{product:id}", "makeOrderPost")->can("create_order", App\Models\Order::class);
+        Route::get("/order/edit_order/{order}", "editOrderGet")->can("edit_order", "order");
+        Route::post("/order/edit_order/{order}", "editOrderPost")->can("edit_order", "order");
+        Route::post("/order/cancel_order/{order}", "cancelOrder")->can("cancel_order", "order");
+
+        // admin only
+        Route::post("/order/reject_order/{order}/{product}", "rejectOrder")->can("reject_order", App\Models\Order::class);
+        Route::post("/order/end_order/{order}/{product}", "endOrder")->can("end_order", App\Models\Order::class);
+        Route::post("/order/approve_order/{order}/{product}", "approveOrder")->can("approve_order", App\Models\Order::class);
+    });
+
+    // review
+    Route::controller(ReviewController::class)->group(function () {
+        Route::get("/review/product/{product}", "productReview");
+        Route::get("/review/data/{review}", "getDataReview");
+        Route::post("/review/add_review/", "addReview");
+        Route::post("/review/edit_review/{review}", "editReview")->can("edit_review", "review");
+        Route::post("/review/delete_review/{review}", "deleteReview")->can("delete_review", "review");
+    });
+
+    // transaction
+    Route::controller(TransactionController::class)->group(function () {
+        Route::get("/transaction", "index")->can("is_admin");
+        Route::get("/transaction/add_outcome", "addOutcomeGet")->can("is_admin");
+        Route::post("/transaction/add_outcome", "addOutcomePost")->can("is_admin");
+        Route::get("/transaction/edit_outcome/{transaction}", "editOutcomeGet")->can("is_admin");
+        Route::post("/transaction/edit_outcome/{transaction}", "editOutcomePost")->can("is_admin");
+    });
+
+    // point
+    Route::controller(PointController::class)->group(function () {
+        Route::get("/point/user_point", "user_point")->can("user_point", App\Models\User::class);
+        Route::post("/point/convert_point", "convert_point")->can("convert_point", App\Models\User::class);
+    });
+
+    // ========== POULTRY MANAGEMENT ROUTES (Admin Only) ==========
+    
+    // Birds Management
+    Route::middleware(['can:is_admin'])->group(function () {
+        Route::controller(BirdController::class)->prefix('birds')->group(function () {
+            Route::get('/', 'index');
+            Route::get('/create', 'create');
+            Route::post('/store', 'store');
+            Route::get('/edit/{bird}', 'edit');
+            Route::post('/update/{bird}', 'update');
+            Route::get('/data/{id}', 'getBirdData');
+        });
+
+        // Mortality Records
+        Route::controller(MortalityController::class)->prefix('mortality')->group(function () {
+            Route::get('/', 'index');
+            Route::get('/create', 'create');
+            Route::post('/store', 'store');
+            Route::get('/edit/{mortality}', 'edit');
+            Route::post('/update/{mortality}', 'update');
+            Route::post('/delete/{mortality}', 'destroy');
+        });
+
+        // Egg Production
+        Route::controller(EggProductionController::class)->prefix('egg-production')->group(function () {
+            Route::get('/', 'index');
+            Route::get('/create', 'create');
+            Route::post('/store', 'store');
+            Route::get('/daily-report', 'dailyReport');
+            Route::get('/monthly-report', 'monthlyReport');
+            Route::get('/yearly-report', 'yearlyReport');
+        });
+
+        // Feed Management
+        Route::controller(FeedController::class)->prefix('feeds')->group(function () {
+            Route::get('/', 'index');
+            Route::get('/create', 'create');
+            Route::post('/store', 'store');
+            Route::get('/usage', 'usageIndex');
+            Route::get('/usage/create', 'usageCreate');
+            Route::post('/usage/store', 'usageStore');
+        });
+
+        // Medication Management
+        Route::controller(MedicationController::class)->prefix('medications')->group(function () {
+            Route::get('/', 'index');
+            Route::get('/create', 'create');
+            Route::post('/store', 'store');
+            Route::get('/usage', 'usageIndex');
+            Route::get('/usage/create', 'usageCreate');
+            Route::post('/usage/store', 'usageStore');
+        });
+
+        // Expenses Management
+        Route::controller(ExpenseController::class)->prefix('expenses')->group(function () {
+            Route::get('/', 'index');
+            Route::get('/create', 'create');
+            Route::post('/store', 'store');
+            Route::get('/edit/{expense}', 'edit');
+            Route::post('/update/{expense}', 'update');
+            Route::post('/delete/{expense}', 'destroy');
+            Route::get('/monthly-report', 'monthlyReport');
+        });
+
+        // Reports & Dashboard
+        Route::controller(ReportController::class)->prefix('reports')->group(function () {
+            Route::get('/dashboard', 'dashboard');
+            Route::get('/profit-loss', 'profitLoss');
+            Route::get('/sales', 'salesReport');
+            Route::get('/inventory', 'inventoryReport');
+        });
+    });
+
+    // chart
+    Route::middleware(['can:is_admin'])->group(function () {
+        // sales chart
+        Route::get("/chart/sales_chart", function () {
+            $oneWeekAgo = DB::select(DB::raw('SELECT DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 6 DAY), "%Y-%m-%d") AS date'))[0]->date;
+
+            $now = date('Y-m-d', time());
+
+            $array_result = [
+                "one_week_ago" => $oneWeekAgo,
+                "now" => $now,
+            ];
+
+            //disable ONLY_FULL_GROUP_BY
+            DB::statement("SET sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));");
+            $array_result["data"] = DB::table("orders")
+                ->selectSub("count(*)", "sales_total")
+                ->selectSub("DATE_FORMAT(orders.updated_at, '%d')", "day")
+                ->selectSub("DATE_FORMAT(orders.updated_at, '%Y-%m-%d')", "date")
+                ->where("is_done", 1)
+                ->whereBetween(DB::raw("DATE_FORMAT(orders.updated_at, '%Y-%m-%d')"), ["$oneWeekAgo", $now])
+                ->groupByRaw("DATE_FORMAT(orders.updated_at, '%Y-%m-%d')")
+                ->get();
+            //re-enable ONLY_FULL_GROUP_BY
+            DB::statement("SET sql_mode=(SELECT CONCAT(@@sql_mode, ',ONLY_FULL_GROUP_BY'));");
+
+            echo json_encode($array_result);
+        });
+        
+        // profits chart
+        Route::get("/chart/profits_chart", function () {
+            $six_month_ago = DB::select(DB::raw('SELECT DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 5 MONTH), "%Y-%m") AS month'))[0]->month;
+            $now = date('Y-m', time());
+            $array_result = [
+                "six_month_ago" => $six_month_ago,
+                "now" => $now,
+            ];
+
+            //disable ONLY_FULL_GROUP_BY
+            DB::statement("SET sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));");
+            $array_result["data"] = DB::table("transactions")
+                ->selectSub("SUM(income) - SUM(outcome)", "profits")
+                ->selectSub("DATE_FORMAT(transactions.created_at, '%Y-%m')", "date")
+                ->whereBetween(DB::raw("DATE_FORMAT(transactions.created_at, '%Y-%m')"), ["$six_month_ago", $now])
+                ->groupByRaw("DATE_FORMAT(transactions.created_at, '%Y-%m')")
+                ->get();
+            //re-enable ONLY_FULL_GROUP_BY
+            DB::statement("SET sql_mode=(SELECT CONCAT(@@sql_mode, ',ONLY_FULL_GROUP_BY'));");
+
+            echo json_encode($array_result);
+        });
+
+        // Egg production chart
+        Route::get("/chart/egg_production_chart", function () {
+            $oneWeekAgo = DB::select(DB::raw('SELECT DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 6 DAY), "%Y-%m-%d") AS date'))[0]->date;
+            $now = date('Y-m-d', time());
+
+            $array_result = [
+                "one_week_ago" => $oneWeekAgo,
+                "now" => $now,
+            ];
+
+            DB::statement("SET sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));");
+            $array_result["data"] = DB::table("egg_production")
+                ->selectSub("SUM(good_eggs)", "total_eggs")
+                ->selectSub("DATE_FORMAT(production_date, '%d')", "day")
+                ->selectSub("DATE_FORMAT(production_date, '%Y-%m-%d')", "date")
+                ->whereBetween(DB::raw("DATE_FORMAT(production_date, '%Y-%m-%d')"), ["$oneWeekAgo", $now])
+                ->groupByRaw("DATE_FORMAT(production_date, '%Y-%m-%d')")
+                ->get();
+            DB::statement("SET sql_mode=(SELECT CONCAT(@@sql_mode, ',ONLY_FULL_GROUP_BY'));");
+
+            echo json_encode($array_result);
+        });
+    });
+
+    // Logout
+    Route::post('/auth/logout', [AuthController::class, "logoutPost"]);
+});
